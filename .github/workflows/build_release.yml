@@ -1,0 +1,74 @@
+name: Build and Release Firmware
+
+on:
+    workflow_dispatch: # Manually triggered
+        inputs:
+            test_mode:
+                description: "Run in test mode (disable release upload)?"
+                required: false
+                default: "true"
+
+permissions:
+    contents: write # Ensure GitHub Actions can create releases
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all tags for versioning
+                  submodules: "recursive"
+
+            - name: Determine release version
+              id: version
+              run: |
+                  # Get the latest Git tag, fallback to short commit hash if none exist
+                  TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "latest-$(git rev-parse --short HEAD)")
+                  echo "release_version=$TAG" >> $GITHUB_OUTPUT
+              shell: bash
+
+            - name: Decode and save signing key
+              id: get_signing_key
+              run: |
+                  mkdir -p keys
+                  SECURE_BOOT_SIGNING_KEY="$(pwd)/keys/secure_boot_signing_key.pem"
+                  echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$SECURE_BOOT_SIGNING_KEY"
+                  ls -lah "$SECURE_BOOT_SIGNING_KEY"  # Debugging: Verify file exists
+                  echo "signing_key_path=$SECURE_BOOT_SIGNING_KEY" >> $GITHUB_OUTPUT
+              shell: bash
+
+            - name: Run build script
+              uses: espressif/esp-idf-ci-action@v1.2.0
+              with:
+                  esp_idf_version: v5.2.4
+                  target: esp32s3
+                  command: ./scripts/build_release.sh
+
+            - name: Find the built firmware file
+              id: find_release
+              run: |
+                  ARTIFACT_PATH=$(find release -type f -name "*.zip" | head -n 1)
+                  if [[ -z "$ARTIFACT_PATH" ]]; then
+                    echo "Error: No release ZIP file found!"
+                    exit 1
+                  fi
+                  echo "artifact_path=$ARTIFACT_PATH" >> $GITHUB_OUTPUT
+              shell: bash
+
+            - name: Upload release asset to GitHub Releases
+              uses: softprops/action-gh-release@v2
+              if: (github.event_name == 'push') || (github.event.inputs.test_mode != 'true') # Skip release upload in test mode
+              with:
+                  files: ${{ steps.find_release.outputs.artifact_path }}
+                  tag_name: ${{ steps.version.outputs.release_version }}
+                  name: "Project ${{ steps.version.outputs.release_version }}"
+                  body:
+                      "Automated firmware build for Project - Version ${{
+                      steps.version.outputs.release_version }}."
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,9 @@
+menu "Project Configuration"
+
+    config HARDWARE_PLATFORM_NAME
+        string "The hardware platform."
+        default "ESP32-S3"
+        help
+            The name of the hardware platform the application is running on.
+
+endmenu

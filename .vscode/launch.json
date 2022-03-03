@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "espidf",
+            "name": "Launch",
+            "request": "launch"
+        },
+        {
+            "name": "Create Dev Release",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${cwd}/scripts/create_release.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--build-dir",
+                "${cwd}/build"
+            ],
+            "env": {
+                "IDF_PATH": "/opt/esp/idf"
+            }
+        }
+    ]
+}
