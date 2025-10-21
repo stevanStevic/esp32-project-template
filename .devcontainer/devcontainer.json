@@ -54,7 +54,12 @@
                 },
                 "[markdown]": {
                     "editor.defaultFormatter": "esbenp.prettier-vscode"
-                }
+                },
+                // General CMake settings
+                "cmake.configureOnOpen": true,
+                // Use Ninja to align with "Build task" to avoid CMake misconfiguration,
+                // when running build over plugin or with task.
+                "cmake.preferredGenerators": ["Ninja", "Unix Makefiles"] 
             },
             "extensions": [
                 "espressif.esp-idf-extension",
