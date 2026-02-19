@@ -1,1 +1,15 @@
 bleak
+pytest>=7.0.0
+requests>=2.28.0
+pytest-html>=3.1.0
+pytest-timeout>=2.1.0
+
+# ESP-IDF pytest-embedded for E2E tests
+# Pinned to 1.x to stay compatible with ESP-IDF's esptool constraint (~=4.12.dev1).
+# The 2.x series requires esptool>=5.1 which conflicts with ESP-IDF v5.5.2.
+pytest-embedded>=1.5.0,<2.0.0
+pytest-embedded-serial-esp>=1.5.0,<2.0.0
+pytest-embedded-idf>=1.5.0,<2.0.0
+
+# Logging
+colorlog>=6.7.0

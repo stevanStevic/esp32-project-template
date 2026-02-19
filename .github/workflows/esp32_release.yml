@@ -1,0 +1,146 @@
+name: ESP32 Release Build
+
+on:
+    workflow_dispatch:
+        inputs:
+            release_name:
+                description: "Release name (optional — defaults to tag, then commit SHA)"
+                required: false
+                type: string
+                default: ""
+            build_type:
+                description: "Build type"
+                required: true
+                type: choice
+                options:
+                    - dev
+                    - release
+                default: "dev"
+            upload_to_releases:
+                description: "Upload to GH Releases"
+                required: false
+                type: boolean
+                default: false
+
+permissions:
+    contents: write
+
+jobs:
+    build-and-release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Log workflow inputs
+              run: |
+                  echo "### Workflow Inputs" >> $GITHUB_STEP_SUMMARY
+                  echo "| Input | Value |" >> $GITHUB_STEP_SUMMARY
+                  echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Release name | \`${{ inputs.release_name || '(auto)' }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Build type | \`${{ inputs.build_type }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Upload to releases | \`${{ inputs.upload_to_releases }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Ref | \`${{ github.ref }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Triggered by | \`${{ github.actor }}\` |" >> $GITHUB_STEP_SUMMARY
+                  echo ""
+                  echo "Build type:          ${{ inputs.build_type }}"
+                  echo "Release name:        ${{ inputs.release_name || '(auto)' }}"
+                  echo "Upload to releases:  ${{ inputs.upload_to_releases }}"
+                  echo "Ref:                 ${{ github.ref }}"
+                  echo "SHA:                 ${{ github.sha }}"
+                  echo "Triggered by:        ${{ github.actor }}"
+
+            # CI Step 1: Checkout — Fetches repo at selected ref with full history
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  submodules: "recursive"
+
+            # CI Step 2: Determine release name — User input → git tag → commit SHA fallback
+            - name: Determine release name
+              id: release_info
+              run: |
+                  # 1. User-provided name takes priority
+                  if [[ -n "${{ inputs.release_name }}" ]]; then
+                    NAME="${{ inputs.release_name }}"
+                    echo "source=input" >> $GITHUB_OUTPUT
+                  # 2. Fall back to git tag pointing at HEAD
+                  elif TAG=$(git describe --tags --exact-match 2>/dev/null); then
+                    NAME="$TAG"
+                    echo "source=tag" >> $GITHUB_OUTPUT
+                  # 3. Fall back to short commit SHA
+                  else
+                    NAME="$(git rev-parse --short HEAD)"
+                    echo "source=sha" >> $GITHUB_OUTPUT
+                  fi
+
+                  echo "release_name=$NAME" >> $GITHUB_OUTPUT
+                  echo "📌 Release name: $NAME"
+
+            # CI Step 3: Restore signing key — (release builds only) Decodes SECURE_BOOT_SIGNING_KEY GitHub Secret
+            - name: Restore signing key
+              if: inputs.build_type == 'release'
+              run: |
+                  mkdir -p code/esp32/keys
+                  echo "${{ secrets.SECURE_BOOT_SIGNING_KEY }}" | base64 -d > code/esp32/keys/secure_boot_signing_key.pem
+                  chmod 600 code/esp32/keys/secure_boot_signing_key.pem
+                  echo "🔑 Signing key restored"
+
+            # CI Step 4: Run host tests — Runs SPI library and ESP32 host tests inside ESP-IDF v5.5.2 Docker container
+            - name: Run host tests
+              uses: espressif/esp-idf-ci-action@v1.2.0
+              with:
+                  esp_idf_version: v5.5.2
+                  target: esp32s3
+                  path: code/esp32
+                  command: |
+                      echo "🔄 Fetching managed components..."
+                      idf.py reconfigure
+                      echo ""
+                      echo "🧪 Running SPI library tests..."
+                      ../common/spi/run_tests.sh
+                      echo ""
+                      echo "🧪 Running ESP32 host tests..."
+                      ./tests/host/run_tests.sh
+
+            # CI Step 5: Build and package — Runs build_release.sh inside ESP-IDF v5.5.2 Docker container
+            - name: Build and package firmware
+              uses: espressif/esp-idf-ci-action@v1.2.0
+              with:
+                  esp_idf_version: v5.5.2
+                  target: esp32s3
+                  path: code/esp32
+                  command:
+                      ./scripts/build_release.sh --type ${{ inputs.build_type }} --name "${{
+                      steps.release_info.outputs.release_name }}"
+
+            - name: Find release artifact
+              id: find_artifact
+              run: |
+                  ARTIFACT_PATH=$(find code/esp32/release -type f -name "*.zip" | head -n 1)
+                  if [[ -z "$ARTIFACT_PATH" ]]; then
+                    echo "❌ No release ZIP file found!"
+                    exit 1
+                  fi
+                  echo "artifact_path=$ARTIFACT_PATH" >> $GITHUB_OUTPUT
+                  echo "artifact_name=$(basename "$ARTIFACT_PATH")" >> $GITHUB_OUTPUT
+                  echo "📦 Found artifact: $ARTIFACT_PATH"
+
+            # CI Step 6: Upload artifact — ZIP always available as a workflow artifact (downloadable from Actions tab)
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ steps.release_info.outputs.release_name }}
+                  path: ${{ steps.find_artifact.outputs.artifact_path }}
+
+            # CI Step 7: Upload to GitHub Releases — (if checkbox checked) Creates a GitHub Release with ZIP attached
+            - name: Upload to GitHub Releases
+              if: inputs.upload_to_releases
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: ${{ steps.find_artifact.outputs.artifact_path }}
+                  tag_name: ${{ steps.release_info.outputs.release_name }}
+                  name: "PlugNPlay ${{ steps.release_info.outputs.release_name }}"
+                  body: "ESP32 firmware release — ${{ steps.release_info.outputs.release_name }}"
+                  draft: false
+                  prerelease: false

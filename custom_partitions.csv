@@ -1,0 +1,9 @@
+# ESP32-S3 WROVER 16MB Flash - Custom OTA Partition Table
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     ,        24K,
+otadata,  data, ota,     ,        8K,
+phy_init, data, phy,     ,        4K,
+ota_0,    app,  ota_0,   0x20000, 4M,
+ota_1,    app,  ota_1,   0x420000, 4M,
+storage,  data, spiffs,  0x820000, 7M,
+coredump, data, coredump,0xF20000, 64K,

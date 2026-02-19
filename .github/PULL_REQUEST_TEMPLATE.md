@@ -1,22 +1,22 @@
-<!-- By using "resolves PROJECT-<issue number>", the PR shall link to Notion task ID -->
+## Description
 
-This pull request resolves PROJECT-<issue number>.
+<!-- Briefly describe what this PR does -->
 
-### Proposed changes
+## Type of Change
 
-<!-- Describe the changes in sufficient detail such that the reviewer gets an overview. -->
+<!-- Mark the relevant option with an [x] -->
 
--
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Enhancement/Improvement
+- [ ] Documentation update
+- [ ] Refactoring
+- [ ] Configuration change
 
-### Checklist before requesting a review
+## Related Issue/Task
 
--   No accidental changes e.g. submodule version change (check diff on github)
--   Relevant CI tests ran and passed (*when available*).
+<!-- Link to related issue, task, or ticket number -->
 
-### Checklist for the author and reviewer
+## Additional Notes
 
--   Notion issue resolved
--   Unit test for new feature implemented.
--   Code is refactored to author's satisfaction
--   Logging support added
--   Code follows coding guidelines
+<!-- Any additional information, screenshots, or context -->

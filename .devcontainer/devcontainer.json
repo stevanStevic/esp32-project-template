@@ -1,88 +1,110 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.183.0/containers/ubuntu
 {
-    "name": "ESP-IDF QEMU",
-    "build": {
-        "dockerfile": "Dockerfile"
-    },
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/project,type=bind",
-    "remoteUser": "ubuntu",
-    "workspaceFolder": "/workspace/project",
-    "mounts": [
-        "source=extensionCache,target=/root/.vscode-server/extensions,type=volume",
-        "source=${localEnv:HOME}/.ssh,target=/home/ubuntu/.ssh,type=bind,consistency=cached" // Mount SSH keys
-    ],
-    "customizations": {
-        "vscode": {
-            "settings": {
-                // ESP-IDF settings
-                "terminal.integrated.defaultProfile.linux": "bash",
-                "idf.espIdfPath": "/opt/esp/idf",
-                "idf.customExtraPaths": "",
-                "idf.pythonBinPath": "/opt/esp/python_env/idf5.2_py3.10_env/bin/python",
-                "idf.toolsPath": "/opt/esp",
-                "idf.gitPath": "/usr/bin/git",
-                "idf.adapterTargetName": "esp32s3",
-                "idf.port": "rfc2217://host.docker.internal:4000?ign_set_control",
-                // General settings
-                "files.autoSave": "onFocusChange",
-                "files.insertFinalNewline": true,
-                "files.trimFinalNewlines": true,
-                "files.trimTrailingWhitespace": true,
-                "editor.formatOnSave": true,
-                "editor.rulers": [110],
-                "C_Cpp.formatting": "clangFormat",
-                // Doxygen documentation generator configuration
-                // Type "/**" then "enter" at the beginning of a line to generate a description
-                "doxdocgen.c.triggerSequence": "/**",
-                "doxdocgen.c.commentPrefix": " * ",
-                "doxdocgen.c.firstLine": "/**",
-                "doxdocgen.c.lastLine": " */",
-                "doxdocgen.file.fileOrder": ["file", "brief"],
-                "doxdocgen.file.fileTemplate": "@file",
-                "doxdocgen.generic.order": ["brief", "empty", "tparam", "param", "return"],
-                "doxdocgen.generic.briefTemplate": "@brief ",
-                "doxdocgen.generic.paramTemplate": "@param {param} ",
-                "doxdocgen.generic.returnTemplate": "@return ",
-                "doxdocgen.generic.boolReturnsTrueFalse": false,
-                // Prettier configuration
-                "[json]": {
-                    "editor.defaultFormatter": "esbenp.prettier-vscode"
-                },
-                "[jsonc]": {
-                    "editor.defaultFormatter": "esbenp.prettier-vscode"
-                },
-                "[markdown]": {
-                    "editor.defaultFormatter": "esbenp.prettier-vscode"
-                },
-                // General CMake settings
-                "cmake.configureOnOpen": true,
-                // Use Ninja to align with "Build task" to avoid CMake misconfiguration,
-                // when running build over plugin or with task.
-                "cmake.preferredGenerators": ["Ninja", "Unix Makefiles"] 
-            },
-            "extensions": [
-                "espressif.esp-idf-extension",
-                "ms-python.python",
-                "ms-python.vscode-pylance", // Language server for Python
-                "ms-vscode.cmake-tools",
-                "ms-vscode.cpptools",
-                "mechatroner.rainbow-csv",
-                "cschlosser.doxdocgen",
-                "esbenp.prettier-vscode"
-            ]
-        }
-    },
-    "runArgs": [
-        "--privileged",
-        "--net=host", // Share host's network to access D-Bus for BLE
-        "-v",
-        "/var/run/dbus:/var/run/dbus:ro", // Use host D-Bus system. This is important because without ro it won't work.
-        "-v",
-        "/run/udev:/run/udev", // Access device management
-        "-v",
-        "/dev/bus/usb:/dev/bus/usb", // Access USB devices (Bluetooth)
-        "-v",
-        "/var/lib/bluetooth:/var/lib/bluetooth" // Access Bluetooth data
-    ]
+  "name": "ESP32 Development",
+  "build": {
+    "dockerfile": "./Dockerfile"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/project,type=bind",
+  "remoteUser": "ubuntu",
+  "workspaceFolder": "/workspace/project",
+  "mounts": [
+    "source=extensionCache,target=/root/.vscode-server/extensions,type=volume",
+    "source=${localEnv:HOME}/.ssh,target=/home/ubuntu/.ssh,type=bind,consistency=cached" // Mount SSH keys
+  ],
+  "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
+    "NO_AT_BRIDGE": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        // ESP-IDF settings
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "idf.espIdfPath": "/opt/esp/idf",
+        "idf.customExtraPaths": "",
+        "idf.pythonBinPath": "/opt/esp/python/bin/python",
+        "idf.toolsPath": "/opt/esp/tools",
+        "idf.gitPath": "/usr/bin/git",
+        "idf.adapterTargetName": "esp32s3",
+        "idf.port": "/dev/ttyACM0",
+        // In multi-root workspaces, set the project directory for ESP-IDF extension
+        "idf.projectDir": "${workspaceFolder}/code/esp32",
+        // General settings
+        "files.autoSave": "onFocusChange",
+        "files.insertFinalNewline": true,
+        "files.trimFinalNewlines": true,
+        "files.trimTrailingWhitespace": true,
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+          110
+        ],
+        "C_Cpp.formatting": "clangFormat",
+        // Doxygen documentation generator configuration
+        // Type "/**" then "enter" at the beginning of a line to generate a description
+        "doxdocgen.c.triggerSequence": "/**",
+        "doxdocgen.c.commentPrefix": " * ",
+        "doxdocgen.c.firstLine": "/**",
+        "doxdocgen.c.lastLine": " */",
+        "doxdocgen.file.fileOrder": [
+          "file",
+          "brief"
+        ],
+        "doxdocgen.file.fileTemplate": "@file",
+        "doxdocgen.generic.order": [
+          "brief",
+          "empty",
+          "tparam",
+          "param",
+          "return"
+        ],
+        "doxdocgen.generic.briefTemplate": "@brief ",
+        "doxdocgen.generic.paramTemplate": "@param {param} ",
+        "doxdocgen.generic.returnTemplate": "@return ",
+        "doxdocgen.generic.boolReturnsTrueFalse": false,
+        // Prettier configuration
+        "[json]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[jsonc]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[markdown]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        // General CMake settings
+        "cmake.configureOnOpen": true,
+        // Use Ninja to align with "Build task" to avoid CMake misconfiguration,
+        // when running build over plugin or with task.
+        "cmake.preferredGenerators": [
+          "Ninja",
+          "Unix Makefiles"
+        ]
+      },
+      "extensions": [
+        "espressif.esp-idf-extension",
+        "ms-python.python",
+        "ms-python.vscode-pylance", // Language server for Python
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools",
+        "mechatroner.rainbow-csv",
+        "bierner.markdown-mermaid",
+        "cschlosser.doxdocgen",
+        "esbenp.prettier-vscode",
+        "github.vscode-pull-request-github"
+      ]
+    }
+  },
+  "runArgs": [
+    "--privileged",
+    "--net=host", // Share host's network to access D-Bus for BLE and WiFi
+    "-v",
+    "/var/run/dbus:/var/run/dbus", // Use host D-Bus system for WiFi control (removed :ro to allow write access)
+    "-v",
+    "/run/udev:/run/udev", // Access device management
+    "-v",
+    "/dev/bus/usb:/dev/bus/usb", // Access USB devices (Bluetooth)
+    "-v",
+    "/var/lib/bluetooth:/var/lib/bluetooth", // Access Bluetooth data
+    "--env=DISPLAY",
+    "--volume=/tmp/.X11-unix:/tmp/.X11-unix"
+  ]
 }

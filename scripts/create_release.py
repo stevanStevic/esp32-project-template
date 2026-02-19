@@ -231,33 +231,34 @@ def create_zip_package(build_dir, temp_dir, flash_data, output_zip):
 
     print(f"✅ Release ZIP package created: {output_zip}")
 
-def generate_release_filename(project_info):
-    """Generates a sanitized release ZIP filename based on project version."""
+def generate_release_filename(project_info, custom_name=None):
+    """Generates a sanitized release ZIP filename.
+
+    If custom_name is provided it is used directly (spaces replaced with underscores).
+    Otherwise the full project_version from the build metadata is used as-is
+    (no stripping of git-describe suffixes).
+    """
 
     project_name = project_info.get("project_name", "UnknownProject")
+
+    if custom_name:
+        sanitized = re.sub(r"[\s]+", "_", custom_name.strip())
+        return f"{project_name}_{sanitized}.zip"
+
     project_version = project_info.get("project_version", "").strip()
 
-    # Remove '-dirty' from version
+    # Remove '-dirty' suffix but keep everything else (tag, commits-ahead, sha)
     cleaned_version = re.sub(r"-dirty$", "", project_version)
+    final_version = cleaned_version if cleaned_version else "latest"
 
-    # Extract a valid semantic version (e.g., v0.0.1)
-    version_match = re.search(r"v?\d+\.\d+(\.\d+)?", cleaned_version)
-    if version_match:
-        final_version = version_match.group(0)  # Use the matched version (e.g., v0.0.1)
-    else:
-        # If no semantic version found, fallback to full cleaned version
-        final_version = cleaned_version if cleaned_version else "latest"
-
-    # Generate the release filename
-    release_name = f"{project_name}_{final_version}.zip"
-
-    return release_name
+    return f"{project_name}_{final_version}.zip"
 
 def main():
     parser = argparse.ArgumentParser(description="Package ESP32 flashing files into a zip archive.")
     parser.add_argument("--build-dir", type=str, default=None, help="Path to the build directory")
     parser.add_argument("--output-dir", type=str, default=None, help="Path to the output directory")
     parser.add_argument("--signing-key", type=str, default="keys/secure_boot_signing_key.pem", help="Path to Secure Boot V2 public signing key")
+    parser.add_argument("--name", type=str, default=None, help="Custom release name (overrides auto-detected version)")
 
     args = parser.parse_args()
 
@@ -275,7 +276,7 @@ def main():
     project_info = parse_project_description(build_dir)
 
     # Generate release zip filename
-    release_name = generate_release_filename(project_info)
+    release_name = generate_release_filename(project_info, custom_name=args.name)
 
     temp_script = create_flash_script(temp_dir, flash_data)
 
