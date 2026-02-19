@@ -2,185 +2,236 @@
 
 ## Overview
 
-This document outlines the step-by-step process to release production-ready firmware for the ESP-IDF project
-using GitHub Actions CI/CD.
+This document outlines how to build and release ESP32 firmware, both locally and via GitHub Actions CI/CD. Two
+build types are supported:
 
-## Release Process Steps
+- **Dev build** - No secure boot, no flash encryption. For development and testing.
+- **Release build** - Secure Boot V2 + flash encryption enabled. For production devices.
 
-### 1. Ensure `develop` is Release Ready
+Both local and CI builds use the same `build_release.sh` script, producing identical output.
 
-Before tagging a release, ensure that the `develop` branch contains the final tested code, ready for
-production.
+---
 
-### 2. Tag the Release
+## Local Build
 
-Tag the `develop` branch with the desired version number:
+### Prerequisites
+
+- ESP-IDF environment sourced (`source $IDF_PATH/export.sh`)
+- For release builds: signing key at `keys/secure_boot_signing_key.pem`
+
+### Dev Build (No Secure Boot)
 
 ```sh
-# Example: Tagging version v1.0.0
-git tag v1.0.0
+cd code/esp32
+./scripts/build_release.sh --type dev
+```
 
+This uses `sdkconfig.defaults` only. Output ZIP is in `release/`.
+
+### Release Build (Secure Boot + Encryption)
+
+First, obtain the signing key from S3:
+
+```sh
+# One-time: configure AWS SSO access
+aws configure sso
+
+# Download signing key
+aws s3 cp s3://<S3-storage-path>/keys/secure_boot_signing_key.pem keys/secure_boot_signing_key.pem
+chmod 600 keys/secure_boot_signing_key.pem
+```
+
+Then build:
+
+```sh
+cd code/esp32
+./scripts/build_release.sh --type release
+```
+
+This uses `sdkconfig.defaults` + `sdkconfig.release` overlay (enables Secure Boot V2, flash encryption).
+Output ZIP is in `release/`.
+
+> **Note:** The signing key is stored on S3 and is **never committed to the repo**. The `keys/` directory is
+> gitignored.
+
+### Comparing Local vs CI Output
+
+Both produce the same ZIP structure. To verify:
+
+```sh
+unzip -l release/AppEsp32_*.zip
+```
+
+Expected contents:
+
+| File                                  | Dev build | Release build                                           |
+| ------------------------------------- | --------- | ------------------------------------------------------- |
+| `flasher_args.json`                   | Yes       | Yes (+ `--force`, `--encrypt` flags, security metadata) |
+| `flash.sh`                            | Yes       | Yes (+ secure boot and encryption warnings)             |
+| `digest.bin`                          | No        | Yes (Secure Boot V2 public key digest)                  |
+| `bootloader/bootloader.bin`           | Yes       | Yes (signed)                                            |
+| `partition_table/partition-table.bin` | Yes       | Yes                                                     |
+| `AppMain.bin`                         | Yes       | Yes (signed)                                            |
+| `ota_data_initial.bin`                | Yes       | Yes                                                     |
+
+---
+
+## CI Build (GitHub Actions)
+
+### Workflow: "ESP32 Release Build"
+
+Located at `.github/workflows/esp32-release.yml`. Triggered manually from the Actions tab.
+
+### Inputs
+
+| Input                     | Type                | Description                                             |
+| ------------------------- | ------------------- | ------------------------------------------------------- |
+| **Branch/Tag**            | Dropdown (built-in) | Select which branch or tag to build from                |
+| **Release name**          | Text (optional)     | Custom release name. Falls back to: tag then commit SHA |
+| **Build type**            | Dropdown            | `dev` (default) or `release`                            |
+| **Upload to GH Releases** | Checkbox            | If checked, attaches ZIP to a GitHub Release            |
+
+### Creating and Pushing a Tag
+
+Before triggering a release build from a tag, you need to create and push it:
+
+```sh
+# Ensure you're on the correct branch and up to date
+git checkout develop
+git pull
+
+# Create an annotated tag
+git tag -a v1.0.0 -m "Release v1.0.0"
+
+# Push the tag to the remote
 git push origin v1.0.0
 ```
 
-### 3. Generate Secure Boot Signing Key (Optional)
+> **Tip:** Use [semantic versioning](https://semver.org/) for tags (e.g., `v1.0.0`, `v1.1.0`, `v2.0.0`).
+> Annotated tags (`-a`) are preferred over lightweight tags as they include author, date, and message
+> metadata.
 
-A new secure boot signing key can be generated for each release. If using an existing key, this step can be
-skipped.
+To list existing tags:
 
-To generate a new signing key:
+```sh
+git tag -l "v*"
+```
+
+To delete a tag if created by mistake:
+
+```sh
+# Delete locally
+git tag -d v1.0.0
+
+# Delete from remote
+git push origin --delete v1.0.0
+```
+
+### How to Run
+
+1. Go to **GitHub Repository** → **Actions**
+2. Select **ESP32 Release Build**
+3. Click **Run workflow**
+4. Select a **tag** (e.g., `v1.0.0`) or branch from the dropdown
+5. Optionally enter a **release name**
+6. Select **build type** (`dev` or `release`)
+7. Check **Upload to GH Releases** if you want to publish
+
+### CI Steps
+
+1. **Checkout** - Fetches repo at selected ref with full history
+2. **Determine release name** - User input → git tag → commit SHA fallback
+3. **Restore signing key** - (release builds only) Decodes `SECURE_BOOT_SIGNING_KEY` GitHub Secret
+4. **Run host tests** - Runs SPI library and ESP32 host tests inside ESP-IDF v5.5.2 Docker container
+5. **Build and package** - Runs `./scripts/build_release.sh --type <dev|release>` inside ESP-IDF v5.5.2 Docker
+   container
+6. **Upload artifact** - ZIP always available as a workflow artifact (downloadable from Actions tab)
+7. **Upload to GitHub Releases** - (if checkbox checked) Creates a GitHub Release with ZIP attached
+
+### CI Secrets
+
+For release builds, the following secret must be configured:
+
+| Secret                    | Description                         |
+| ------------------------- | ----------------------------------- |
+| `SECURE_BOOT_SIGNING_KEY` | Base64-encoded RSA-3072 signing key |
+
+To set it up (one-time):
+
+```sh
+base64 -w 0 keys/secure_boot_signing_key.pem
+# Copy output → GitHub repo Settings → Secrets → New secret → SECURE_BOOT_SIGNING_KEY
+```
+
+---
+
+## Signing Key Management
+
+| Location                                       | Purpose                             |
+| ---------------------------------------------- | ----------------------------------- |
+| **S3** (`s3://<S3-storage-path>/keys/`)        | Source of truth for the signing key |
+| **GitHub Secret** (`SECURE_BOOT_SIGNING_KEY`)  | Base64-encoded copy for CI          |
+| **Local** (`keys/secure_boot_signing_key.pem`) | Downloaded from S3, gitignored      |
+
+The private key is used at **build time only** to:
+
+1. Sign the bootloader and app binaries (done by `idf.py build` with `sdkconfig.release`)
+2. Derive `digest.bin` (public key hash, done by `create_release.py`)
+
+The private key is **never** included in the release ZIP. Only `digest.bin` (public key hash) ships.
+
+### Generating a New Key
 
 ```sh
 espsecure.py generate_signing_key --version 2 keys/secure_boot_signing_key.pem
+
+# Upload to S3
+aws s3 cp keys/secure_boot_signing_key.pem s3://<S3-storage-path>/keys/secure_boot_signing_key.pem --sse AES256
+
+# Base64 encode for GitHub Secret
+base64 -w 0 keys/secure_boot_signing_key.pem
+# Paste output into GitHub Secrets as SECURE_BOOT_SIGNING_KEY
 ```
 
-### 4. Encode and Add the Signing Key to CI Secrets (Optional)
+---
 
-Before adding the signing key to GitHub Secrets, it must be base64 encoded:
+## Scripts
+
+### `build_release.sh`
+
+Unified build script for local and CI use.
 
 ```sh
-base64 keys/secure_boot_signing_key.pem > encoded_signing_key.txt
+./scripts/build_release.sh --type dev       # Dev build
+./scripts/build_release.sh --type release   # Release build (needs signing key)
 ```
 
-Add the contents of `encoded_signing_key.txt` to GitHub Secrets under `SIGNING_KEY`.
+Steps:
 
-### 5. Manually Trigger the CI Release Workflow
+1. Detects ESP-IDF project root
+2. Validates signing key (release builds only)
+3. Cleans old `sdkconfig` and build directory
+4. Builds with appropriate config overlay
+5. Calls `create_release.py` to package the release ZIP
 
-Run the GitHub Actions workflow manually with `test_mode=false`:
+### `create_release.py`
 
-1. Go to **GitHub Repository** → **Actions**
-2. Select the `Build and Release Firmware` workflow
-3. Click **Run workflow**
-4. Set `test_mode` to `false` to enable full release mode
+Packages build output into a release ZIP.
 
-### 6. GitHub Actions CI Job Execution
+1. Parses `flasher_args.json` - detects secure boot and encryption settings
+2. Modifies flash arguments for release (adds `--force`, `--encrypt` flags if needed)
+3. Generates `digest.bin` from signing key (if secure boot detected)
+4. Creates `flash.sh` script with appropriate warnings
+5. Bundles everything into a ZIP archive
 
-The CI job executes the following steps:
+### Release ZIP Contents
 
-#### **Step 1: Checkout Repository**
-
-Fetches the repository with full history and submodules.
-
-```yaml
-- name: Checkout repo
-  uses: actions/checkout@v4
-  with:
-      fetch-depth: 0
-      submodules: "recursive"
-```
-
-#### **Step 2: Determine Release Version**
-
-Extracts the latest Git tag or falls back to a short commit hash.
-
-```sh
-TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "latest-$(git rev-parse --short HEAD)")
-echo "release_version=$TAG" >> $GITHUB_OUTPUT
-```
-
-#### **Step 3: Decode and Save Signing Key**
-
-Decodes the base64-encoded signing key stored in GitHub Secrets.
-
-```sh
-mkdir -p keys
-SECURE_BOOT_SIGNING_KEY="$(pwd)/keys/secure_boot_signing_key.pem"
-echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$SECURE_BOOT_SIGNING_KEY"
-```
-
-#### **Step 4: Run Build Script**
-
-Executes the build script using Espressif’s GitHub CI action.
-
-```yaml
-- name: Run build script
-  uses: espressif/esp-idf-ci-action@v1.2.0
-  with:
-      esp_idf_version: v5.2.4
-      target: esp32s3
-      command: ./scripts/build_release.sh
-```
-
-#### **Step 5: Locate Built Firmware**
-
-Finds the generated release ZIP file.
-
-```sh
-ARTIFACT_PATH=$(find release -type f -name "*.zip" | head -n 1)
-if [[ -z "$ARTIFACT_PATH" ]]; then
-  echo "Error: No release ZIP file found!"
-  exit 1
-fi
-echo "artifact_path=$ARTIFACT_PATH" >> $GITHUB_OUTPUT
-```
-
-#### **Step 6: Upload Release to GitHub**
-
-If `test_mode=false`, the firmware is uploaded as a GitHub release asset.
-
-```yaml
-- name: Upload release asset to GitHub Releases
-  uses: softprops/action-gh-release@v2
-  if: (github.event_name == 'push') || (github.event.inputs.test_mode != 'true')
-  with:
-      files: ${{ steps.find_release.outputs.artifact_path }}
-      tag_name: ${{ steps.version.outputs.release_version }}
-      name: "Project ${{ steps.version.outputs.release_version }}"
-      body: "Automated firmware build for Project - Version ${{ steps.version.outputs.release_version }}."
-      draft: false
-      prerelease: false
-  env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-## Scripts Breakdown
-
-### **`build_release.sh` - Build Process**
-
-1. Detects the project root and sets up the build directory.
-2. Ensures ESP-IDF is sourced and SDK configuration files are cleaned up.
-3. Builds the project with release-specific configurations.
-4. Invokes the release packaging script.
-
-```sh
-idf.py -B "$BUILD_DIR" -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release" build
-```
-
-### **`create_release.py` - Release Packaging**
-
-1. Extracts project metadata from `project_description.json`.
-2. Parses `flasher_args.json` to detect secure boot and encryption.
-3. Modifies the flasher arguments for release consistency.
-4. Generates a Secure Boot V2 public key digest (if applicable).
-5. Creates a `flash.sh` script with safe flashing instructions.
-6. Bundles the necessary files into a ZIP archive.
-
-### **Secure Boot & Encryption Handling**
-
--   **Secure Boot Detection:** Ensures the bootloader is included in `flasher_args.json`.
--   **Encryption Handling:** Adds `--encrypt` flag to ensure proper encryption at flashing time.
--   **Flashing Script Generation:** Creates a `flash.sh` script that includes security warnings and necessary
-    flashing steps.
-
-```sh
-echo "⚠️ Secure Boot is enabled! Use --force to flash the bootloader."
-esptool.py write_flash --flash_mode dio --flash_freq 40m --flash_size detect --force 0x0 bootloader.bin
-```
-
-### **Release ZIP Package Contents**
-
-The final output is a ZIP archive containing:
-
--   `flasher_args.json` – Modified flashing parameters
--   `flash.sh` – A script for flashing with security warnings
--   `digest.bin` – Secure Boot V2 public key digest (if applicable)
--   Firmware binary files
-
-## Summary
-
-The CI/CD pipeline automates the firmware build and release process, ensuring a smooth and secure release
-workflow for ESP-IDF-based firmware. This approach ensures:
-
--   **Consistency:** Tagged releases are automatically built and packaged.
--   **Security:** Secure Boot and Encryption settings are enforced.
--   **Efficiency:** Eliminates manual intervention in firmware packaging and deployment.
+| File                                  | Description                                            |
+| ------------------------------------- | ------------------------------------------------------ |
+| `flasher_args.json`                   | Modified flash addresses and settings                  |
+| `flash.sh`                            | One-command flash script with security warnings        |
+| `digest.bin`                          | Secure Boot V2 public key digest (release builds only) |
+| `bootloader/bootloader.bin`           | Second-stage bootloader (signed in release builds)     |
+| `partition_table/partition-table.bin` | Compiled partition table                               |
+| `MainApp.bin`                         | Main application (signed in release builds)            |
+| `ota_data_initial.bin`                | OTA data partition initial state                       |
