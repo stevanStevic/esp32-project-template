@@ -247,3 +247,59 @@ Development under MacOS and Windows with VSCode containers are not tested. Feel 
 
 Documentation outlines the step-by-step [process](docs/release_process.md) to release production-ready
 firmware for the project using GitHub Actions CI/CD.
+
+# Agentic Development Workflows
+
+This template includes AI agent configurations for both **GitHub Copilot** and **Claude Code** to support
+structured, standard-compliant ESP-IDF project development.
+
+## How It Works
+
+Agents use the skill documents in `docs/skills/` as their knowledge base:
+
+| Document | Covers |
+|---|---|
+| `docs/skills/architecture-patterns.md` | Interface/implementation separation, DI, composition root |
+| `docs/skills/coding-standards.md` | Naming, file organization, C++17, git conventions |
+| `docs/skills/testing-strategy.md` | 3-tier testing: host, on-target, E2E |
+| `docs/skills/build-system.md` | ESP-IDF CMake, managed components, sdkconfig |
+| `docs/skills/security-and-release.md` | Secure boot, flash encryption, release process |
+
+## 6-Phase Development Workflow
+
+| Phase | Copilot Prompt | Claude Command | Purpose |
+|---|---|---|---|
+| 1 | `01-decompose-requirements` | `/decompose-requirements` | Requirements decomposition |
+| 2 | `02-design-architecture` | `/design-architecture` | Architecture design |
+| 3 | `03-scaffold-project` | `/scaffold-project` | Full project scaffold |
+| 4 | `04-generate-component` | `/generate-component` | Add a component |
+| 5 | `05-generate-tests` | `/generate-tests` | Generate tests |
+| 6 | `06-setup-ci` | `/setup-ci` | Finalise CI |
+
+## Using with GitHub Copilot (VS Code)
+
+1. Open the repository in VS Code inside the devcontainer
+2. Open Copilot Chat and select the appropriate prompt from `.github/prompts/`
+3. Provide your business requirements and hardware description
+4. Work through phases 1–6 sequentially, confirming at each checkpoint
+
+## Using with Claude Code
+
+1. Open the repository root in a terminal
+2. Run `claude` to enter Claude Code
+3. Use `/decompose-requirements` to start Phase 1
+4. Confirm requirements before proceeding to each next phase
+
+See [docs/agent-usage-guide.md](docs/agent-usage-guide.md) for a detailed walkthrough with examples.
+
+# Testing
+
+```bash
+# Host unit tests (no hardware required)
+./scripts/run_all_tests.sh --host
+
+# All tests (requires ESP32-S3 hardware)
+./scripts/run_all_tests.sh --all
+```
+
+See [tests/README.md](tests/README.md) for full testing documentation.
