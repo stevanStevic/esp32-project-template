@@ -81,9 +81,9 @@ jobs:
             - name: Restore signing key
               if: inputs.build_type == 'release'
               run: |
-                  mkdir -p code/esp32/keys
-                  echo "${{ secrets.SECURE_BOOT_SIGNING_KEY }}" | base64 -d > code/esp32/keys/secure_boot_signing_key.pem
-                  chmod 600 code/esp32/keys/secure_boot_signing_key.pem
+                  mkdir -p keys
+                  echo "${{ secrets.SECURE_BOOT_SIGNING_KEY }}" | base64 -d > keys/secure_boot_signing_key.pem
+                  chmod 600 keys/secure_boot_signing_key.pem
                   echo "🔑 Signing key restored"
 
             # CI Step 4: Run host tests — Runs SPI library and ESP32 host tests inside ESP-IDF v5.5.2 Docker container
@@ -92,7 +92,7 @@ jobs:
               with:
                   esp_idf_version: v5.5.2
                   target: esp32s3
-                  path: code/esp32
+                  path: .
                   command: |
                       echo "🔄 Fetching managed components..."
                       idf.py reconfigure
@@ -109,7 +109,7 @@ jobs:
               with:
                   esp_idf_version: v5.5.2
                   target: esp32s3
-                  path: code/esp32
+                  path: .
                   command:
                       ./scripts/build_release.sh --type ${{ inputs.build_type }} --name "${{
                       steps.release_info.outputs.release_name }}"
@@ -117,7 +117,7 @@ jobs:
             - name: Find release artifact
               id: find_artifact
               run: |
-                  ARTIFACT_PATH=$(find code/esp32/release -type f -name "*.zip" | head -n 1)
+                  ARTIFACT_PATH=$(find release -type f -name "*.zip" | head -n 1)
                   if [[ -z "$ARTIFACT_PATH" ]]; then
                     echo "❌ No release ZIP file found!"
                     exit 1
@@ -140,7 +140,7 @@ jobs:
               with:
                   files: ${{ steps.find_artifact.outputs.artifact_path }}
                   tag_name: ${{ steps.release_info.outputs.release_name }}
-                  name: "PlugNPlay ${{ steps.release_info.outputs.release_name }}"
+                  name: "${{ steps.release_info.outputs.release_name }}"
                   body: "ESP32 firmware release — ${{ steps.release_info.outputs.release_name }}"
                   draft: false
                   prerelease: false
