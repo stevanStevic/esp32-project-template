@@ -16,7 +16,7 @@ Ask the user:
 ## Host Tests
 
 For each component, generate `tests/host/<snake>_tests.cpp`:
-- Hand-written mock for each `*If` dependency  
+- Hand-written mock for each `*If` dependency
 - Happy path + failure/timeout test cases
 - Use `X86Queue` for queue deps, `StdThreadRunner` for task runner deps
 - Update `tests/host/CMakeLists.txt`

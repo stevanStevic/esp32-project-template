@@ -29,6 +29,8 @@ Before making ANY modification, you MUST:
 2. Read the interface header(s) for any interface you are about to change
 3. Read the existing test file(s) for every component you will modify
 4. Identify the composition root wiring in `main/main.cpp` — check if new injection is needed
+5. Read the affected sections of `docs/requirements.md` — state/behaviour tables, diagrams, requirement
+   statements
 
 Do not infer file contents from filenames. Read them.
 
@@ -39,37 +41,60 @@ Do not infer file contents from filenames. Read them.
 Produce an impact report with these sections before writing any code:
 
 ### Components affected
+
 List each component (class name + file) whose source **or** interface you intend to modify.
 
 ### Dependency blast radius
+
 For each modified interface (`*If`):
+
 - Who calls it? (list all components with a `std::shared_ptr<XxxIf>` member)
 - Will the existing call sites still compile if you change the interface?
 - Will any mock in `tests/host/` need updating?
 
 ### Test impact
+
 For each test file in `tests/host/`:
+
 - Which test cases will **fail** after the change (expected behavior changes)?
 - Which test cases will **not compile** after the change (signature changes)?
 - Which test cases are **still valid** and must continue to pass?
 
 ### Composition root impact
-- Does `main/main.cpp` need new instantiation or wiring?
-- Does `App`'s constructor or `init()`/`run()` need updating?
+
+- Does the composition root need new instantiation or wiring?
+- Does the top-level application class constructor or lifecycle methods need updating?
 
 ### New files needed
+
 List only if genuinely new — a new interface, a new component. Most behavioral changes require zero new files.
+
+### Requirements update
+
+For every change that modifies system behavior, list the exact sections of `docs/requirements.md` that must be
+updated:
+
+- **Changelog table** — add a new row at the top: bump the patch version (e.g.1.x → 1.x+1), set today's date,
+  and write a one-line summary referencing the change request ID (e.g. CR-YYYY-NNN)
+- **Document header** — update the revision field to match the new version
+- State or mode definitions if any description changes
+- Behaviour or transition tables if any row is added, removed, or updated
+- Diagrams (FSM, sequence, data-flow) if any arrow or label changes
+- Individual requirement statements if any rule changes
+
+Requirements and code must stay in sync. A change that is implemented but not reflected in
+`docs/requirements.md` is incomplete.
 
 ---
 
 ## When to Change an Interface vs. Add to It vs. Leave It Alone
 
-| Situation | Action |
-|---|---|
-| New behavior, new callers | Add a new method to the interface |
-| Existing behavior needs a parameter added | Add overload; deprecate old signature if needed |
-| Behavior change that all callers must adopt | Change method, update all call sites and mocks |
-| Change isolated to one implementation | Modify the `.cpp` only — leave interface unchanged |
+| Situation                                   | Action                                                    |
+| ------------------------------------------- | --------------------------------------------------------- |
+| New behavior, new callers                   | Add a new method to the interface                         |
+| Existing behavior needs a parameter added   | Add overload; deprecate old signature if needed           |
+| Behavior change that all callers must adopt | Change method, update all call sites and mocks            |
+| Change isolated to one implementation       | Modify the `.cpp` only — leave interface unchanged        |
 | New component needed to coordinate behavior | Add component via Phase 4 pattern; inject via constructor |
 
 **Never remove a method from an interface** without first verifying no call sites exist.
@@ -107,7 +132,8 @@ Acceptance criteria:
 ## Regression Checklist (Before Submitting Changes)
 
 - [ ] All existing tests that were valid still pass (no unintended behavior changes)
-- [ ] Any test whose expected behavior changed has been updated with the new expectation and a comment explaining why
+- [ ] Any test whose expected behavior changed has been updated with the new expectation and a comment
+      explaining why
 - [ ] Any test that no longer compiles due to signature changes has been updated
 - [ ] New test cases cover every acceptance criterion from the delta requirement
 - [ ] No unrelated files were modified
@@ -115,6 +141,7 @@ Acceptance criteria:
 - [ ] `tests/host/CMakeLists.txt` is updated if any new test executables were added
 - [ ] `main/main.cpp` wiring is updated if new components or dependencies were introduced
 - [ ] Clang-format has been applied to all modified files
+- [ ] `docs/requirements.md` updated: requirements update according to required changes.
 
 ---
 

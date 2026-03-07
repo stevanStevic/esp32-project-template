@@ -16,6 +16,7 @@ Before generating ANY code, read all documents in `docs/skills/`:
 - `docs/skills/testing-strategy.md` — 3-tier testing: host, on-target, E2E
 - `docs/skills/build-system.md` — ESP-IDF CMake, managed components, sdkconfig
 - `docs/skills/security-and-release.md` — Secure boot, flash encryption, release process
+- `docs/skills/change-management.md` — Minimal-change principle, impact analysis, requirements update
 
 ## Core Principle (Non-Negotiable)
 
@@ -36,17 +37,20 @@ Before generating ANY code, read all documents in `docs/skills/`:
 ## Always Generate Tests
 
 For every new component you generate, also create:
+
 - `tests/host/<name>_tests.cpp` with hand-written mocks
 - Update `tests/host/CMakeLists.txt` with new test target
 
-## Change Requests and Incremental Features
+## Always Update Requirements
 
-For modifications to an existing project, use the CR workflow instead of Phases 1–3:
+For every change that modifies system behavior:
 
-1. `/analyze-change-request` — read the affected code first, produce impact report, confirm before touching anything
-2. `/add-feature` — implement the approved change with minimal footprint
-
-Read `docs/skills/change-management.md` before any modification. The minimal-change principle is mandatory.
+1. Add a row to the **Changelog table** in `docs/requirements.md` — bump the patch version (1.x → 1.x+1), set
+   today's date, include the change request ID (CR-YYYY-NNN) and a one-line summary
+2. Update the **revision header** to match the new version
+3. Update state/mode definitions, behaviour tables, and diagrams to match the implementation
+4. Requirements and code must be in sync — an implemented change not reflected in `docs/requirements.md` is
+   incomplete
 
 ## Hard Rules
 
@@ -63,13 +67,22 @@ Read `docs/skills/change-management.md` before any modification. The minimal-cha
 
 Run these with `/command-name` in Claude Code:
 
-| Command | Phase | Purpose |
-|---|---|---|
-| `/decompose-requirements` | 1 | Break requirements into structured SW specs |
-| `/design-architecture` | 2 | Design interfaces, components, queues |
-| `/scaffold-project` | 3 | Generate full project scaffold |
-| `/generate-component` | 4 | Add a single component incrementally |
-| `/generate-tests` | 5 | Generate or update tests |
-| `/setup-ci` | 6 | Finalise CI workflow and CODEOWNERS |
-| `/analyze-change-request` | CR | Read existing code, produce impact report before any edits |
-| `/add-feature` | CR | Implement an approved change request with minimal footprint |
+**Greenfield (new project):**
+
+| Command                   | Phase | Purpose                                     |
+| ------------------------- | ----- | ------------------------------------------- |
+| `/decompose-requirements` | 1     | Break requirements into structured SW specs |
+| `/design-architecture`    | 2     | Design interfaces, components, queues       |
+| `/scaffold-project`       | 3     | Generate full project scaffold              |
+| `/generate-component`     | 4     | Add a single component incrementally        |
+| `/generate-tests`         | 5     | Generate or update tests                    |
+| `/setup-ci`               | 6     | Finalise CI workflow and CODEOWNERS         |
+
+**Change requests and incremental features (existing project):**
+
+| Command                   | Phase | Purpose                                                                                          |
+| ------------------------- | ----- | ------------------------------------------------------------------------------------------------ |
+| `/analyze-change-request` | 7     | Read existing code, produce impact report + requirements delta, confirm before touching anything |
+| `/add-feature`            | 8     | Implement the approved change with minimal footprint, update requirements                        |
+
+For change requests, read `docs/skills/change-management.md` before any other action.

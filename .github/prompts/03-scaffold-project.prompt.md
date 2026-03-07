@@ -53,7 +53,7 @@ Before outputting any file, verify:
 
 Generate files in this order:
 1. All interface headers
-2. All component headers  
+2. All component headers
 3. All component sources
 4. Updated main.cpp and App files
 5. All test files
