@@ -288,3 +288,6 @@ build_release/
 
 # Default directory for signing and encryption keys
 keys*
+
+# Generated sdkconfig (regenerates from sdkconfig.defaults; never commit)
+sdkconfig
