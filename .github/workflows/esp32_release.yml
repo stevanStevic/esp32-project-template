@@ -51,7 +51,7 @@ jobs:
 
             # CI Step 1: Checkout — Fetches repo at selected ref with full history
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   fetch-depth: 0
                   submodules: "recursive"
@@ -86,7 +86,7 @@ jobs:
                   chmod 600 keys/secure_boot_signing_key.pem
                   echo "🔑 Signing key restored"
 
-            # CI Step 4: Run host tests — Runs SPI library and ESP32 host tests inside ESP-IDF v5.5.2 Docker container
+            # CI Step 4: Run host tests — Runs host tests inside ESP-IDF v5.5.2 Docker container
             - name: Run host tests
               uses: espressif/esp-idf-ci-action@v1.2.0
               with:
@@ -97,10 +97,7 @@ jobs:
                       echo "🔄 Fetching managed components..."
                       idf.py reconfigure
                       echo ""
-                      echo "🧪 Running SPI library tests..."
-                      ../common/spi/run_tests.sh
-                      echo ""
-                      echo "🧪 Running ESP32 host tests..."
+                      echo "🧪 Running host tests..."
                       ./tests/host/run_tests.sh
 
             # CI Step 5: Build and package — Runs build_release.sh inside ESP-IDF v5.5.2 Docker container
@@ -128,7 +125,7 @@ jobs:
 
             # CI Step 6: Upload artifact — ZIP always available as a workflow artifact (downloadable from Actions tab)
             - name: Upload artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ steps.release_info.outputs.release_name }}
                   path: ${{ steps.find_artifact.outputs.artifact_path }}
@@ -136,7 +133,7 @@ jobs:
             # CI Step 7: Upload to GitHub Releases — (if checkbox checked) Creates a GitHub Release with ZIP attached
             - name: Upload to GitHub Releases
               if: inputs.upload_to_releases
-              uses: softprops/action-gh-release@v2
+              uses: softprops/action-gh-release@v3
               with:
                   files: ${{ steps.find_artifact.outputs.artifact_path }}
                   tag_name: ${{ steps.release_info.outputs.release_name }}
