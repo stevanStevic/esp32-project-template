@@ -44,7 +44,7 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CONTAINER_USER=ubuntu
-ARG IDF_VERSION=v5.4.2
+ARG IDF_VERSION=v5.5.2
 
 # ## System dependencies ##################################################
 # Includes prerequisites for ESP-IDF (git, python3, cmake, ninja, etc.),
@@ -132,8 +132,13 @@ RUN eim install \
 COPY requirements.txt /tmp/
 RUN . /opt/esp/python/bin/activate \
     && pip install --no-cache-dir --upgrade pip \
+    # Locate the ESP-IDF constraint file by glob so this step survives
+    # IDF_VERSION bumps. The file is named by the major.minor release branch
+    # (e.g. espidf.constraints.v5.4.txt for IDF v5.4.x), not the patch version.
+    && CONSTRAINTS="$(find /opt/esp -maxdepth 3 -name 'espidf.constraints.*.txt' | head -n1)" \
+    && { [ -n "${CONSTRAINTS}" ] || { echo "ERROR: ESP-IDF constraint file not found under /opt/esp" >&2; exit 1; }; } \
     && pip install --no-cache-dir \
-        -c /opt/esp/tools/espidf.constraints.v5.4.txt \
+        -c "${CONSTRAINTS}" \
         -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
